@@ -21,7 +21,7 @@ class DiscordConnection(discord.Client):
         if message.author == self.user:
             return
 
-        if message.content.startswith('$hello'):
+        if message.content.startswith('$'):
             # Remember this is the channel that is being spoken in
             self.current_channel = message.channel
 
