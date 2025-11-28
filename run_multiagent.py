@@ -35,14 +35,15 @@ async def main_scenario():
     global_state.push_system_message(SYSTEM_PROMPT)
 
 
+
     AGENT_FIRST_PROMPT = """
-    You are naturally an optimist and delight in the input of the user. You have good extensions of ideas the user has already put forward.
+    You are naturally a pessimist and don't think the users ideas are very good. You highlight problems of things that could go wrong. Your clients appreciate your frankness.
     """
     agent_first_state = MessageHistory()
     agent_first_state.push_system_message(AGENT_FIRST_PROMPT)
 
     AGENT_SECOND_PROMPT = """
-    You are naturally a pessimist and don't think the users ideas are very good. You highlight problems of things that could go wrong. Your clients appreciate your frankness.
+    You are naturally an optimist and delight in the input of the user. You have good extensions of ideas the user has already put forward.
     """
     agent_second_state = MessageHistory()
     agent_second_state.push_system_message(AGENT_SECOND_PROMPT)
@@ -58,17 +59,32 @@ async def main_scenario():
     agent_second.register_state(agent_second_state)
 
     async def echo():
+        current = agent_first
+        current_state = agent_first_state
+
+        l = 0
         while True:
             # Get user message
             user_message = await discord_connection.user_message_queue.get()
-            # Add the message to the first agents context
-            agent_first_state.push_user_message(user_message.content)
-            # Agent 1 respond
-            await agent_first.respond()
+            # Add the message to the current agent's context
+            current_state.push_user_message(user_message.content)
 
-            user_next_message = await discord_connection.user_message_queue.get()
-            agent_second_state.push_user_message(user_next_message.content)
-            await agent_second.respond()
+            l += 1
+            if l % 2 == 0:
+                agent_introspection = current.ask_question(" do you want to yield asking questions to another assistant? If you say yes, please provide a summary of the conversation. If no, explain what else you hope to develop with the user. ")
+                if agent_introspection["yes"]:
+                    # Swap active agent
+                    current = agent_second if current == agent_first else agent_first
+                    current_state = agent_second_state if current_state == agent_first_state else agent_first_state
+
+                    # Append the summary to the global state
+                    global_state.push_system_message( f"Previous assistants have spoken to this client before and noted: {agent_introspection["summary"]}")
+
+                    # Pickup where the user left off
+                    current_state.push_user_message(user_message.content)
+
+            # Agent respond
+            await current.respond()
 
     await asyncio.gather(discord_connection.start(DISCORD_TOKEN_1),
                          agent_first.start(DISCORD_TOKEN_2), agent_second.start(DISCORD_TOKEN_3), echo(), )

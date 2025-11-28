@@ -5,6 +5,12 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from discord_connection import DiscordConnection
 from messagehistory import MessageHistory
 
+from pydantic import BaseModel
+
+class Response(BaseModel):
+    yes: bool
+    summary: str
+
 
 # I want to tightly control what messages this agent considers when responding, so despite being able to read from discord,
 # this agent will delegate reading and writing to the connection
@@ -15,13 +21,26 @@ class Agent(discord.Client):
         self.connection = connection
         self.consideredMessageHistories = []
 
+
         self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+        self.oracle_llm = self.llm.with_structured_output(schema=Response.model_json_schema(), method="json_schema")
+
+
         self.agent = create_agent(
             model=self.llm,
         )
 
     async def on_ready(self):
         print(f'Agent:{self.name} is connected as {self.user}')
+
+    def ask_question(self,question):
+        flat_messages = [msg for h in self.consideredMessageHistories for msg in h.messages]
+        flat_messages.append({"role": "system", "content": f"Based on the previous conversation,${question}"})
+
+        response = self.oracle_llm.invoke(flat_messages)
+        print(f"Agent: {self.name} Q: {question}, A:{response["yes"]} {response["summary"]}")
+        return response
+
 
     async def respond(self):
         agent_view_of_channel = self.get_channel( self.connection.current_channel.id)
