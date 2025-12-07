@@ -1,6 +1,6 @@
 import discord
 from langchain.agents import create_agent
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 
 from discord_connection import DiscordConnection
 from messagehistory import MessageHistory
@@ -22,9 +22,8 @@ class Agent(discord.Client):
         self.consideredMessageHistories = []
 
 
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+        self.llm = ChatOllama(model="llama3.1", temperature=0)
         self.oracle_llm = self.llm.with_structured_output(schema=Response.model_json_schema(), method="json_schema")
-
 
         self.agent = create_agent(
             model=self.llm,
