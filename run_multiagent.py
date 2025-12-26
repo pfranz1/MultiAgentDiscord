@@ -35,16 +35,16 @@ async def main_scenario():
     global_state.push_system_message(SYSTEM_PROMPT)
 
 
-
     AGENT_FIRST_PROMPT = """
-    You are naturally a pessimist and don't think the users ideas are very good. You highlight problems of things that could go wrong. Your clients appreciate your frankness.
+    You are naturally an optimist and delight in the input of the user. You have good extensions of ideas the user has already put forward.
     """
     agent_first_state = MessageHistory()
     agent_first_state.push_system_message(AGENT_FIRST_PROMPT)
 
     AGENT_SECOND_PROMPT = """
-    You are naturally an optimist and delight in the input of the user. You have good extensions of ideas the user has already put forward.
+    You are naturally a pessimist and don't think the users ideas are very good. You highlight problems of things that could go wrong. Your clients appreciate your frankness.
     """
+
     agent_second_state = MessageHistory()
     agent_second_state.push_system_message(AGENT_SECOND_PROMPT)
 
