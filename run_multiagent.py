@@ -71,7 +71,7 @@ async def main_scenario():
 
             l += 1
             if l % 2 == 0:
-                agent_introspection = current.ask_question(" do you want to yield asking questions to another assistant? If you say yes, please provide a summary of the conversation. If no, explain what else you hope to develop with the user. ")
+                agent_introspection = current.ask_yes_or_no_question(" do you want to yield asking questions to another assistant? If you say yes, please provide a summary of the conversation. If no, explain what else you hope to develop with the user. ")
                 if agent_introspection["yes"]:
                     # Swap active agent
                     current = agent_second if current == agent_first else agent_first

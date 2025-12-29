@@ -11,6 +11,12 @@ class MessageHistory:
     def push_assistant_message(self, message):
         self.messages.append({"role": "assistant", "content": message})
 
+    def __len__(self):
+        return len(self.messages)
+
     def pop(self, times=1):
         for i in range(times):
             self.messages.pop()
+
+    def reset(self):
+        self.messages = []

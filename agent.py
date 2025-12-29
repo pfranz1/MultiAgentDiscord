@@ -1,3 +1,4 @@
+
 import discord
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
@@ -7,9 +8,10 @@ from messagehistory import MessageHistory
 
 from pydantic import BaseModel
 
-class Response(BaseModel):
+class YesOrNoResponse(BaseModel):
     yes: bool
     summary: str
+
 
 
 # I want to tightly control what messages this agent considers when responding, so despite being able to read from discord,
@@ -23,7 +25,7 @@ class Agent(discord.Client):
 
 
         self.llm = ChatOllama(model="llama3.1", temperature=0)
-        self.oracle_llm = self.llm.with_structured_output(schema=Response.model_json_schema(), method="json_schema")
+        self.oracle_llm = self.llm.with_structured_output(schema=YesOrNoResponse.model_json_schema(), method="json_schema")
 
         self.agent = create_agent(
             model=self.llm,
@@ -32,7 +34,7 @@ class Agent(discord.Client):
     async def on_ready(self):
         print(f'Agent:{self.name} is connected as {self.user}')
 
-    def ask_question(self,question):
+    def ask_yes_or_no_question(self, question):
         flat_messages = [msg for h in self.consideredMessageHistories for msg in h.messages]
         flat_messages.append({"role": "system", "content": f"Based on the previous conversation,${question}"})
 
@@ -45,15 +47,24 @@ class Agent(discord.Client):
         agent_view_of_channel = self.get_channel( self.connection.current_channel.id)
         async with agent_view_of_channel.typing():
             flat_messages = [msg for h in self.consideredMessageHistories for msg in h.messages]
+
             response = self.agent.invoke({"messages": flat_messages})
             response_content = response['messages'][-1].content
             if len(response_content) > 2000:
                 response_content = response_content[:2000]
+
+            if len(response_content) <= 0:
+                response_content = "The agent has no response."
 
             for i, msg in enumerate(response["messages"]):
                 msg.pretty_print()
             # respond
             await agent_view_of_channel.send(response_content)
 
+            return response
+
     def register_state(self, state: MessageHistory):
         self.consideredMessageHistories.append(state)
+
+    def remove_state(self, state: MessageHistory):
+        self.consideredMessageHistories.remove(state)
