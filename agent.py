@@ -3,6 +3,9 @@ import discord
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 
+import logging
+logger = logging.getLogger(__name__)
+
 from discord_connection import DiscordConnection
 from messagehistory import MessageHistory
 
@@ -44,9 +47,11 @@ class Agent(discord.Client):
 
 
     async def respond(self):
+        logger.info(f"({self.name}) responding\nlen history: {len(self.consideredMessageHistories)} ")
         agent_view_of_channel = self.get_channel( self.connection.current_channel.id)
         async with agent_view_of_channel.typing():
             flat_messages = [msg for h in self.consideredMessageHistories for msg in h.messages]
+            logger.debug(flat_messages)
 
             response = self.agent.invoke({"messages": flat_messages})
             response_content = response['messages'][-1].content
@@ -54,12 +59,15 @@ class Agent(discord.Client):
                 response_content = response_content[:2000]
 
             if len(response_content) <= 0:
+                logger.warning(f"Agent {self.name} responded with an empty response.")
                 response_content = "The agent has no response."
 
             for i, msg in enumerate(response["messages"]):
-                msg.pretty_print()
+                logger.debug(msg.pretty_print())
+
             # respond
             await agent_view_of_channel.send(response_content)
+            logger.info(f"{self.name} is responding with {response_content}")
 
             return response
 

@@ -45,6 +45,7 @@ async def main_scenario():
     Rules:
     - You will see entries from your co-workers in a standard format. It will be their role, a colon, then their message.
     - Do not start messages with your role
+    - Do not make suggestions, leave it to the experts.
     """
 
     AGENT_PROMPT = """
@@ -55,6 +56,7 @@ async def main_scenario():
     - The moderator will focus each round of conversation on an overall goal. Your job is to use your experience to help accomplish this goal.
     - You will see entries from your co-workers in a standard format. It will be their role, a colon, then their message.
     - Do not start messages with your role
+    - Be curious and ask the chairman questions, but limit it to just one question.
     """
 
     VISIONARY_PROMPT = """
@@ -107,9 +109,10 @@ async def main_scenario():
 
     async def echo():
         await discord_connection.user_message_queue.get()
+        logger.info(f"Starting chat with user in {discord_connection.current_channel.name}")
 
         # Make it available to the facilitator
-        facilitator_state.push_user_message("To start, you will greet the cabinet and ask the chairman what the overall high-level goal will be for today.")
+        facilitator_state.push_user_message("To start, please greet myself and the cabinet. Then prompt me, the chairman, to set an overall high-level goal for today.")
         overall_goal = await checkpoint(facilitator,"Do you have a clear goal from the chairman? If yes, summarize it.", "I am still not clear on the goal. Let me try to clarify with the chairman." )
         facilitator_state.push_assistant_message(f"The overall goal is: {overall_goal}")
 
@@ -120,7 +123,7 @@ async def main_scenario():
         # Now we have an overall goal, each round will take us closer to it
         while True:
             # Prime agents to yap
-            round_state.push_user_message("Please remark freely on this topic, sharing your ideas and insight.")
+            round_state.push_user_message("Please remark freely on this round's topic, sharing your ideas and insight.")
 
             # Ask the cabinet
             for agent, state in zip(cabinet, cabinet_state):
@@ -130,11 +133,12 @@ async def main_scenario():
 
                 # Append to state
                 state.push_assistant_message(agent_response_content) # Agent will remember conversation across rounds
-                round_state.push_assistant_message(f"Agent {agent.name} has previously said: { agent_response_content}") # Round provides summary to next agents
+                round_state.push_system_message(f"Agent {agent.name} has previously said: { agent_response_content}") # Round provides summary to next agents
 
                 # Get user message
                 user_message = await discord_connection.user_message_queue.get()
                 user_message_content = user_message.content
+                logger.info(f"(User) {user_message_content}")
 
                 # Append to state
                 state.push_user_message(user_message_content) # agent remembers response
@@ -151,10 +155,11 @@ async def main_scenario():
 
             # Put the summary inside every cabinet member
             for c_state in cabinet_state:
-                c_state.push_system_message(f"Moderator: So far we have all agreed on the following. {overall_goal}")
+                c_state.push_system_message(f"Moderator: So far we have all agreed on the following. {convo_summary}")
 
             # The round is over, clear it for the cabinet, they just remember the summary and their interaction with the user
             round_state.reset()
+            logger.info(f"Round finished")
 
             # summarize points of divergence and ask for next steps
             facilitator_state.push_user_message("Now that we know what is decided in the conversation, please consider what areas of contain open questions. Present me areas of further inquiry, so I may select one.")
@@ -162,6 +167,7 @@ async def main_scenario():
 
             # Get user message
             user_message = await discord_connection.user_message_queue.get()
+            logger.info(f"(User) {user_message.content}")
 
             facilitator_state.push_user_message(user_message.content)
 
@@ -177,9 +183,6 @@ async def main_scenario():
 
             # Let the agents know their goal for the next round of speaking
             round_state.push_system_message(f"Moderator: For this round of conversation, you will be focused on discussing further this topic: {introspection['summary']}.")
-
-
-
 
     await asyncio.gather(discord_connection.start(DISCORD_TOKEN_1),
                          facilitator.start(DISCORD_TOKEN_2), visionary.start(DISCORD_TOKEN_3),pragmatist.start(DISCORD_TOKEN_4), socialite.start(DISCORD_TOKEN_5), echo(), )
@@ -205,18 +208,18 @@ async def checkpoint( agent : Agent, goal_statement: str, correction_self_talk: 
         user_message = await discord_connection.user_message_queue.get()
 
         checkpoint_state.push_user_message(user_message.content)
+        logger.info(f"(User) {user_message.content}")
 
         introspection = agent.ask_yes_or_no_question(goal_statement)
         goal_reached = introspection["yes"]
         if goal_reached:
-            logger.info(f"Agent {agent.name} has reached their goal on attempt #{i} after saying {introspection['summary']}")
+            logger.info(f"({agent.name}) Reached goal on #{i}.\nSUMMARY: {introspection['summary']}")
 
             # Return the summary
             agent.remove_state(checkpoint_state)
             return introspection["summary"]
         else:
-
-            logger.info(f"Agent {agent.name} must keep trying, attempt #{i}. {introspection['summary']}")
+            logger.info(f"Agent {agent.name} must keep trying, attempt #{i}.\nSUMMARY: {introspection['summary']}")
 
             # Dive deeper asking the user
             checkpoint_state.push_user_message(f"{introspection["summary"]} {correction_self_talk} ")
